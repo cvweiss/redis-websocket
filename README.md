@@ -11,3 +11,12 @@ To install it:
 To run it:
 
     nodejs app.js
+
+Example:
+
+    > nodejs app.js
+    Sat Jul 23 2016 20:54:15 GMT+0000 (UTC) Server is listening on port 15241
+    Sat Jul 23 2016 20:54:20 GMT+0000 (UTC) Broadcasted to 72 clients: ping
+    Sat Jul 23 2016 20:54:40 GMT+0000 (UTC) Broadcasted to 122 clients: pong
+    Sat Jul 23 2016 20:55:02 GMT+0000 (UTC) Broadcasted to 239 clients: {"action": "test"}
+    
