@@ -1,36 +1,21 @@
-var WebSocketServer = require('websocket').server;
-var http = require('http');
-var redis = require("redis");
-var client = redis.createClient();
-var conns = [];
+	
+	"use strict";
 
-var port = 15241;
+	const server 	= require("websocket").server;
+	const http 		= require("http");
+	const redis 	= require("redis");
 
-var server = http.createServer(function(request, response) {
-        response.writeHead(404);
-        response.end();
-        });
+	const port 		= 15241;
 
-server.listen(port, function() {
-        console.log((new Date()) + ' Server is listening on port ' + port);
-        });
+	const web 		= http.createServer((req, res) => { res.writeHead(404); res.end(); });
+		web.listen(port, () => console.log(`${Date()} Server is listening on port ${port}`));
 
-wsServer = new WebSocketServer({ httpServer: server});
-wsServer.on('request', function(request) {
-        var connection = request.accept();
-        conns.push(connection);
-        connection.on('close', function(reasonCode, description) {
-                index = conns.indexOf(connection);
-                if (index > -1) {
-                conns.splice(index, 1);
-                }
-                });
-});
+	const ws 		= new server({ httpServer: web });
+		ws.on("request", request => request.accept());
 
-client.on("message", function(channel, message) {
-        conns.forEach(function (each) {
-            each.send(message);
-            });
-        console.log((new Date()) + " Broadcasted to " + conns.length + " clients: " + message);
-        });
-client.subscribe('public');
+	const client 	= redis.createClient();
+		client.on("message", (channel, message) => {
+			ws.connections.forEach(connection => connection.send(message));
+			console.log(`${Date()} Broadcasted to ${ws.connections.length} clients: ${message}`);
+		});
+		client.subscribe("public");
