@@ -40,4 +40,4 @@ An example of an nginx configuration that listens to port 2096 and passes this t
         }
 
         access_log off;
-}
+    }
