@@ -11,10 +11,12 @@ console.log(`${Date()} Server started and listening on port ${port}`);
 redis.on("pmessage", (pattern, channel, message) => {
         var count = 0;
         ws.connections.forEach( (connection) => {
+            var broadcasted = false;
             if (connection.subscriptions instanceof Array) {
-                if (connection.subscriptions.indexOf(channel) != -1) {
+                if (broadcasted === false && connection.subscriptions.indexOf(channel) !== -1) {
                     connection.send(message);
                     count++;
+                    broadcasted = true;
                 }
             }
         });
@@ -28,7 +30,7 @@ ws.on('connect', (connection) => {
             try {
                 var data = JSON.parse(message.utf8Data);
                 if (connection.subscriptions === undefined) connection.subscriptions = new Array();
-                if (data.action == 'sub') connection.subscriptions.push(data.channel);
+                if (data.action === 'sub') connection.subscriptions.push(data.channel);
             } catch (e) {
             };
         }
