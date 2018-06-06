@@ -1,6 +1,6 @@
 # redis-websocket
 
-Creates a websocket on port 15241, listens to all channels on redis, and will publish them connections that have subscribed to that channel.
+Creates a websocket on port 15241, listens to all channels on redis, and will publish to each connection the messages from each channel they have subscribed.
 
 To install it:
 
@@ -12,9 +12,13 @@ To run it:
 
     nodejs app.js
     
-To listen to a channel, from the browser client connecting to the websocket:
+To listen to the public channel, from the browser client connecting to the websocket:
 
     ws.send(JSON.stringify({'action':'sub','channel':'public'}));
+    
+Additional channels can be specified one at a time:
+
+    ws.send(JSON.stringify({'action':'sub','channel':'datastream'}));
 
 Example:
 
