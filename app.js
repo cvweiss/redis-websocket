@@ -4,6 +4,7 @@
 const port = 15241;
 
 const redis = require("redis").createClient();
+const redis2 = require("redis").createClient();
 const http = require("http").createServer((req, res) => { res.writeHead(404); res.end(); }).listen(port);
 const ws = new (require("websocket").server)({ httpServer: http, autoAcceptConnections: true });
 
@@ -21,6 +22,7 @@ redis.on("pmessage", (pattern, channel, message) => {
             }
         });
         console.log(`${Date()} Broadcasted to ${count} clients: ${message}`);
+        updateWsCount(redis2, ws.connections.length);
         });
 redis.psubscribe("*");
 
@@ -36,3 +38,7 @@ ws.on('connect', (connection) => {
         }
     });    
 });
+
+function updateWsCount(redis, count) {
+    redis.set("zkb:websocketCount", count, redis.print);
+}
