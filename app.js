@@ -32,8 +32,13 @@ ws.on('connect', (connection) => {
             try {
                 var data = JSON.parse(message.utf8Data);
                 if (connection.subscriptions === undefined) connection.subscriptions = new Array();
-                if (data.action === 'sub') connection.subscriptions.push(data.channel);
-                if (data.action === 'unsub') {
+                if (data.action === 'sub') {
+                    var index = connection.subscriptions.indexOf(data.channel);
+                    if (index == -1) {
+                        connection.subscriptions.push(data.channel);
+                    }
+                }
+                else if (data.action === 'unsub') {
                     var index = connection.subscriptions.indexOf(data.channel);
                     if (index > -1) {
                         connection.subscriptions.splice(index, 1);
