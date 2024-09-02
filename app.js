@@ -11,17 +11,24 @@ const ws = new (require("websocket").server)({ httpServer: http, autoAcceptConne
 console.log(`${Date()} Server started and listening on port ${port}`);
 redis.on("pmessage", (pattern, channel, message) => {
         var count = 0;
+        var error = 0;
         ws.connections.forEach( (connection) => {
             var broadcasted = false;
             if (connection.subscriptions instanceof Array) {
                 if (broadcasted === false && connection.subscriptions.indexOf(channel) !== -1) {
-                    connection.send(message);
-                    count++;
-                    broadcasted = true;
+                    try {
+                        connection.send(message);
+                        count++;
+                        broadcasted = true;
+                        redis2.setex(`r2w:broadcasted:${channel}`, 9600, true, redis.print);
+                    } catch (e) {
+                        error++;
+                    }
                 }
             }
         });
-        console.log(`${Date()} Broadcasted to ${count} clients: ${message}`);
+        if (count > 0) console.log(`${Date()} Broadcasted ${channel} to ${count} clients`);
+        if (error > 0) console.log(`${Date()} Broadcasted ${channel} with ${count} errors`);
         updateWsCount(redis2, ws.connections.length);
         });
 redis.psubscribe("*");
@@ -33,6 +40,7 @@ ws.on('connect', (connection) => {
                 var data = JSON.parse(message.utf8Data);
                 if (connection.subscriptions === undefined) connection.subscriptions = new Array();
                 if (data.action === 'sub') {
+                    redis2.setex(`r2w:broadcasted:${data.channel}`, 9600, true, redis.print);
                     var index = connection.subscriptions.indexOf(data.channel);
                     if (index == -1) {
                         connection.subscriptions.push(data.channel);
@@ -51,5 +59,5 @@ ws.on('connect', (connection) => {
 });
 
 function updateWsCount(redis, count) {
-    redis.set("zkb:websocketCount", count, redis.print);
+    redis.setex("zkb:websocketCount", 30, count, redis.print);
 }
