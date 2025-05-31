@@ -1,10 +1,17 @@
 #!/usr/bin/env node
 "use strict";
 
+const os = require('os');
+const hostname = os.hostname();
+
+console.log('Hostname:', os.hostname());
+
 const port = 15241;
 
-const redis = require("redis").createClient();
-const redis2 = require("redis").createClient();
+console.log('Trying', process.argv[2]);
+const redis = require("redis").createClient(6379, process.argv[2]);
+redis.setex('foo', 5, 'bar'); // test that we can write
+const redis2 = redis.duplicate();
 const http = require("http").createServer((req, res) => { res.writeHead(404); res.end(); }).listen(port);
 const ws = new (require("websocket").server)({ httpServer: http, autoAcceptConnections: true });
 
@@ -19,8 +26,7 @@ redis.on("pmessage", (pattern, channel, message) => {
                     try {
                         connection.send(message);
                         count++;
-                        broadcasted = true;
-                        redis2.setex(`r2w:broadcasted:${channel}`, 9600, true, redis.print);
+                        broadcasted = true; // prevents broadcasting the same message across multiple channels
                     } catch (e) {
                         error++;
                     }
@@ -29,7 +35,6 @@ redis.on("pmessage", (pattern, channel, message) => {
         });
         if (count > 0) console.log(`${Date()} Broadcasted ${channel} to ${count} clients`);
         if (error > 0) console.log(`${Date()} Broadcasted ${channel} with ${count} errors`);
-        updateWsCount(redis2, ws.connections.length);
         });
 redis.psubscribe("*");
 
@@ -40,7 +45,7 @@ ws.on('connect', (connection) => {
                 var data = JSON.parse(message.utf8Data);
                 if (connection.subscriptions === undefined) connection.subscriptions = new Array();
                 if (data.action === 'sub') {
-                    redis2.setex(`r2w:broadcasted:${data.channel}`, 9600, true, redis.print);
+                    //redis2.setex(`r2w:broadcasted:${data.channel}`, 9600, true, redis.print);
                     var index = connection.subscriptions.indexOf(data.channel);
                     if (index == -1) {
                         connection.subscriptions.push(data.channel);
@@ -58,6 +63,11 @@ ws.on('connect', (connection) => {
     });    
 });
 
-function updateWsCount(redis, count) {
-    redis.setex("zkb:websocketCount", 30, count, redis.print);
+function updateWsCount() {
+    try {
+        redis2.hset('zkb:websockets', hostname, ws.connections.length);
+    } catch (e) {
+        process.exit(1);
+    }
 }
+setInterval(updateWsCount, 1000);
