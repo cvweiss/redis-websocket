@@ -45,7 +45,6 @@ ws.on('connect', (connection) => {
                 var data = JSON.parse(message.utf8Data);
                 if (connection.subscriptions === undefined) connection.subscriptions = new Array();
                 if (data.action === 'sub') {
-                    //redis2.setex(`r2w:broadcasted:${data.channel}`, 9600, true, redis.print);
                     var index = connection.subscriptions.indexOf(data.channel);
                     if (index == -1) {
                         connection.subscriptions.push(data.channel);
