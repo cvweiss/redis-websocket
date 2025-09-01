@@ -7,4 +7,5 @@ export NVM_DIR="$HOME/.nvm"
 nvm use 18
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-node "$SCRIPT_DIR/app.js"
+cd "$SCRIPT_DIR"
+node app.js
