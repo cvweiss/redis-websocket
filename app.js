@@ -1,74 +1,101 @@
 #!/usr/bin/env node
 "use strict";
 
-const os = require('os');
-const hostname = os.hostname();
+const os = require("os");
+const http = require("http");
+const { createClient } = require("redis");
+const { server: WebSocketServer } = require("websocket");
 
-console.log('Hostname:', os.hostname());
+(async () => {
+	const hostname = os.hostname();
+	console.log("Hostname:", hostname);
 
-const port = 15241;
+	const port = 15241;
+	const host = process.argv[2] ?? "localhost";
 
-const host = process.argv[2] ?? 'localhost';
+	console.log("Trying", host);
 
-console.log('Trying', host);
-const redis = require("redis").createClient(6379, host);
-redis.setex('foo', 5, 'bar'); // test that we can write
-const redis2 = redis.duplicate();
-const http = require("http").createServer((req, res) => { res.writeHead(404); res.end(); }).listen(port);
-const ws = new (require("websocket").server)({ httpServer: http, autoAcceptConnections: true });
+	// Redis client
+	const redis = createClient({ url: `redis://${host}:6379` });
+	redis.on("error", (err) => console.error("Redis Client Error", err));
+	await redis.connect();
 
-console.log(`${Date()} Server started and listening on port ${port}`);
-redis.on("pmessage", (pattern, channel, message) => {
-	var count = 0;
-	var error = 0;
-	ws.connections.forEach((connection) => {
-		var broadcasted = false;
-		if (connection.subscriptions instanceof Array) {
-			if (broadcasted === false && connection.subscriptions.indexOf(channel) !== -1) {
-				try {
-					connection.send(message);
-					count++;
-					broadcasted = true; // prevents broadcasting the same message across multiple channels
-				} catch (e) {
-					error++;
+	// Test write
+	await redis.set("foo", "bar", { EX: 5 });
+
+	// Duplicate client for housekeeping
+	const redis2 = redis.duplicate();
+	await redis2.connect();
+
+	// HTTP + WebSocket server
+	const httpServer = http
+		.createServer((req, res) => {
+			res.writeHead(404);
+			res.end();
+		})
+		.listen(port);
+
+	const ws = new WebSocketServer({
+		httpServer: httpServer,
+		autoAcceptConnections: true,
+	});
+
+	console.log(`${Date()} Server started and listening on port ${port}`);
+
+	// PubSub using pSubscribe
+	await redis.pSubscribe("*", (message, channel) => {
+		let count = 0;
+		let error = 0;
+		ws.connections.forEach((connection) => {
+			let broadcasted = false;
+			if (connection.subscriptions instanceof Array) {
+				if (!broadcasted && connection.subscriptions.includes(channel)) {
+					try {
+						connection.send(message);
+						count++;
+						broadcasted = true;
+					} catch (e) {
+						error++;
+					}
 				}
 			}
-		}
+		});
+		if (count > 0) console.log(`${Date()} Broadcasted ${channel} to ${count} clients`);
+		if (error > 0) console.log(`${Date()} Broadcasted ${channel} with ${error} errors`);
 	});
-	if (count > 0) console.log(`${Date()} Broadcasted ${channel} to ${count} clients`);
-	if (error > 0) console.log(`${Date()} Broadcasted ${channel} with ${count} errors`);
-});
-redis.psubscribe("*");
 
-ws.on('connect', (connection) => {
-	connection.on('message', function (message) {
-		if (message.type === 'utf8') {
-			try {
-				var data = JSON.parse(message.utf8Data);
-				if (connection.subscriptions === undefined) connection.subscriptions = new Array();
-				if (data.action === 'sub') {
-					var index = connection.subscriptions.indexOf(data.channel);
-					if (index == -1) {
-						connection.subscriptions.push(data.channel);
+	// Handle WebSocket subscriptions
+	ws.on("connect", (connection) => {
+		connection.on("message", (message) => {
+			if (message.type === "utf8") {
+				try {
+					const data = JSON.parse(message.utf8Data);
+					if (connection.subscriptions === undefined) connection.subscriptions = [];
+					if (data.action === "sub") {
+						if (!connection.subscriptions.includes(data.channel)) {
+							connection.subscriptions.push(data.channel);
+						}
+					} else if (data.action === "unsub") {
+						const index = connection.subscriptions.indexOf(data.channel);
+						if (index > -1) {
+							connection.subscriptions.splice(index, 1);
+						}
 					}
+				} catch (e) {
+					// ignore malformed JSON
 				}
-				else if (data.action === 'unsub') {
-					var index = connection.subscriptions.indexOf(data.channel);
-					if (index > -1) {
-						connection.subscriptions.splice(index, 1);
-					}
-				}
-			} catch (e) {
-			};
-		}
+			}
+		});
 	});
-});
 
-function updateWsCount() {
-	try {
-		redis2.hset('zkb:websockets', hostname, ws.connections.length);
-	} catch (e) {
-		process.exit(1);
+	// Update WebSocket count in Redis
+	async function updateWsCount() {
+		try {
+			await redis2.hSet("zkb:websockets", hostname, ws.connections.length);
+		} catch (e) {
+			console.error("updateWsCount failed:", e);
+			process.exit(1);
+		}
 	}
-}
-setInterval(updateWsCount, 1000);
+	setInterval(updateWsCount, 1000);
+})();

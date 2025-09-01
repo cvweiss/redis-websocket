@@ -4,11 +4,10 @@
   "description": "Simple redis to websocket publication",
   "main": "app.js",
   "dependencies": {
-    "redis": "^2.6.2",
+    "redis": "^5.8.2",
     "websocket": "^1.0.23",
-    "ws": "^5.2.0"
+    "ws": "^8.18.3"
   },
-  "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
