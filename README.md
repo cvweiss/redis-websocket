@@ -11,6 +11,34 @@ To install it:
 To run it:
 
     nodejs app.js
+
+To run it with Docker only:
+
+    docker build -t redis-websocket .
+    docker run -d --restart unless-stopped --name redis-websocket --env-file .env --network host --log-opt max-size=10m --log-opt max-file=5 redis-websocket
+
+This uses host networking (Linux), so `localhost` inside the container is the host.
+Logging options limit log files to 10MB each with a max of 5 rotated files, preventing disk bloat from noisy output.
+
+`PORT` defaults to `15241` in both the app and Docker image, and can be overridden.
+
+Example overriding the port:
+
+    docker run -d --restart unless-stopped --name redis-websocket --env-file .env --network host --log-opt max-size=10m --log-opt max-file=5 -e PORT=18080 redis-websocket
+
+For containerized runs, the application uses these environment variables:
+
+    SERVERS    -> Redis host or comma-separated hosts, tried in order until one starts successfully
+    PORT       -> WebSocket listen port inside the container (default: 15241)
+
+Example with fallback Redis hosts:
+
+    docker run -d --restart unless-stopped --name redis-websocket --env-file .env --network host --log-opt max-size=10m --log-opt max-file=5 redis-websocket
+
+Example `.env` values:
+
+    SERVERS=localhost
+    PORT=15241
     
 To listen to the public channel, from the browser client connecting to the websocket:
 
