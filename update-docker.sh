@@ -23,12 +23,25 @@ while IFS= read -r line || [[ -n "$line" ]]; do
 done < "$ENV_FILE"
 
 declare -a extra_hosts=()
+declare -a normalized_servers=()
 IFS=',' read -r -a redis_servers <<< "$servers_value"
 for server in "${redis_servers[@]}"; do
 	server="${server#"${server%%[![:space:]]*}"}"
 	server="${server%"${server##*[![:space:]]}"}"
+	server="${server#\"}"
+	server="${server%\"}"
+	server="${server#\'}"
+	server="${server%\'}"
+	server="${server#"${server%%[![:space:]]*}"}"
+	server="${server%"${server##*[![:space:]]}"}"
 
-	if [[ -z "$server" || "$server" == "localhost" || "$server" =~ ^[0-9.]+$ || "$server" == *:* ]]; then
+	if [[ -z "$server" ]]; then
+		continue
+	fi
+
+	normalized_servers+=("$server")
+
+	if [[ "$server" == "localhost" || "$server" =~ ^[0-9.]+$ || "$server" == *:* ]]; then
 		continue
 	fi
 
@@ -38,6 +51,13 @@ for server in "${redis_servers[@]}"; do
 		echo "Warning: $server could not be resolved on the Docker host" >&2
 	fi
 done
+
+if (( ${#normalized_servers[@]} == 0 )); then
+	echo "SERVERS is missing or empty in $ENV_FILE" >&2
+	exit 1
+fi
+
+normalized_servers_value="$(IFS=,; printf '%s' "${normalized_servers[*]}")"
 
 docker build -t "$IMAGE_NAME" "$SCRIPT_DIR"
 
@@ -49,6 +69,7 @@ docker run -d \
 	--restart unless-stopped \
 	--name "$CONTAINER_NAME" \
 	--env-file "$ENV_FILE" \
+	--env "SERVERS=$normalized_servers_value" \
 	--network host \
 	--log-opt max-size=10m \
 	--log-opt max-file=5 \
